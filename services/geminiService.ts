@@ -1,13 +1,7 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
 // Initialize API Client
-let currentApiKey = process.env.API_KEY || '';
-let ai = new GoogleGenAI({ apiKey: currentApiKey });
-
-export const setGeminiApiKey = (key: string) => {
-    currentApiKey = key;
-    ai = new GoogleGenAI({ apiKey: currentApiKey });
-};
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
