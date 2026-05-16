@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  BookOpen, Palette, SaveAll, Dices, FolderOpen, Plus, 
+  BookOpen, Palette, SaveAll, Dices, FolderOpen, Plus, Key, Eye, EyeOff,
   Sparkles, Loader2, FileText, Users, Wand2, Trash2, RefreshCw, 
   Download, Check, X, User, ArrowRight, Book, ImageIcon, Play, Pause, Music, Mic, Maximize2,
   RectangleVertical, RectangleHorizontal, Square, History, Pencil, Upload, ImagePlus, BookOpenText, ChevronLeft, ChevronRight, Volume2,
   Settings2, StopCircle, FileDown, RotateCcw
 } from 'lucide-react';
-import { generateScriptContent, generateStoryboardImage, generateSpeech, editStoryboardImage } from './services/geminiService';
+import { generateScriptContent, generateStoryboardImage, generateSpeech, editStoryboardImage, setGeminiApiKey } from './services/geminiService';
 import { jsPDF } from "jspdf";
 
 // --- Types & Constants ---
@@ -122,6 +122,11 @@ const App: React.FC = () => {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
 
+  // API Key State
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+  const [showApiKey, setShowApiKey] = useState(false);
+
   // Data State
   const [formData, setFormData] = useState({
     title: '',
@@ -165,6 +170,20 @@ const App: React.FC = () => {
   const pausedAtRef = useRef<number>(0);
   const isPausedManualRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) {
+      setGeminiApiKey(savedKey);
+    }
+  }, []);
+
+  const saveApiKey = () => {
+    localStorage.setItem('gemini_api_key', tempApiKey);
+    setGeminiApiKey(tempApiKey);
+    setShowApiKeyModal(false);
+  };
 
   // --- Input Handlers ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -1224,6 +1243,48 @@ const App: React.FC = () => {
         }
       `}</style>
 
+      {/* API KEY MODAL */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+            <div className={`w-full max-w-md rounded-2xl shadow-2xl p-8 border ${isDarkMode ? 'bg-[#18181B] border-[#27272A]' : 'bg-white border-slate-200'}`}>
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-fredoka font-bold flex items-center gap-2">
+                        <Key className="w-5 h-5 text-accent"/> Manual Gemini Key
+                    </h3>
+                    <button onClick={() => setShowApiKeyModal(false)} className="p-2 opacity-50 hover:opacity-100 hover:bg-black/5 rounded-full"><X className="w-5 h-5"/></button>
+                </div>
+                
+                <p className="text-sm opacity-60 mb-6">Gunakan API Key Gemini Anda sendiri untuk menghindari kuota publik.</p>
+                
+                <div className="space-y-4">
+                    <div className="relative">
+                        <input 
+                            type={showApiKey ? "text" : "password"} 
+                            placeholder="Masukkan GEMINI_API_KEY..." 
+                            value={tempApiKey}
+                            onChange={(e) => setTempApiKey(e.target.value)}
+                            className={`w-full p-4 pr-12 rounded-xl border outline-none focus:ring-2 focus:ring-accent transition-all ${isDarkMode ? 'bg-black/20 border-white/10 text-white' : 'bg-slate-50 border-slate-200 text-black'}`}
+                        />
+                        <button 
+                            type="button"
+                            onClick={() => setShowApiKey(prev => !prev)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100"
+                        >
+                            {showApiKey ? <EyeOff className="w-5 h-5"/> : <Eye className="w-5 h-5"/>}
+                        </button>
+                    </div>
+                    
+                    <button 
+                        onClick={saveApiKey}
+                        className="w-full py-4 rounded-xl bg-accent text-white font-bold flex items-center justify-center gap-2 shadow-lg shadow-accent/20 hover:opacity-90 transition-all"
+                    >
+                        <Check className="w-5 h-5"/> Simpan API Key
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {fullscreenImage && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-8 backdrop-blur-md" onClick={() => setFullscreenImage(null)}>
             <div className="relative max-w-5xl max-h-full">
@@ -1284,6 +1345,7 @@ const App: React.FC = () => {
                              ))}
                          </div>
                     )}
+                    <button onClick={() => setShowApiKeyModal(true)} className="p-2 rounded-lg opacity-60 hover:opacity-100 hover:bg-black/5 transition-all" title="Manual Gemini Key"><Key className="w-5 h-5"/></button>
                     <button onClick={handleSaveProject} className="p-2 rounded-lg opacity-60 hover:opacity-100 hover:bg-black/5 transition-all" title="Simpan Project"><SaveAll className="w-5 h-5"/></button>
                     
                     {/* DOWNLOAD PDF BUTTON MOVED TO HEADER */}
@@ -1326,6 +1388,9 @@ const App: React.FC = () => {
                                 <button onClick={handleRandomizeProject} disabled={isRandomizing} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isDarkMode ? 'bg-[#3F3F46] hover:bg-[#52525B]' : 'bg-white border border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
                                     {isRandomizing ? <Loader2 className="w-4 h-4 text-accent animate-spin"/> : <Dices className="w-4 h-4 text-accent"/>} 
                                     <span className="text-xs uppercase tracking-widest">{isRandomizing ? "Sedang Mencari Ide..." : "Ide Acak (Random)"}</span>
+                                </button>
+                                <button onClick={() => setShowApiKeyModal(true)} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isDarkMode ? 'bg-[#3F3F46] hover:bg-[#52525B]' : 'bg-white border border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
+                                    <Key className="w-4 h-4 text-accent"/> <span className="text-xs uppercase tracking-widest text-[10px]">Manual API Key</span>
                                 </button>
                                 <button onClick={() => fileInputRef.current?.click()} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${isDarkMode ? 'bg-[#3F3F46] hover:bg-[#52525B]' : 'bg-white border border-slate-200 hover:bg-slate-50 shadow-sm'}`}>
                                     <FolderOpen className="w-4 h-4 text-accent"/> <span className="text-xs uppercase tracking-widest">Buka Project</span>
