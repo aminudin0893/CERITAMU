@@ -2,55 +2,30 @@ import { GoogleGenAI, Modality } from "@google/genai";
 
 // Initialize API Client
 let currentApiKey = process.env.API_KEY || '';
-let aiInstance: GoogleGenAI | null = null;
-
-const getAI = () => {
-    if (!aiInstance) {
-        if (!currentApiKey || currentApiKey.trim() === '') {
-            currentApiKey = localStorage.getItem('gemini_api_key') || '';
-        }
-        if (!currentApiKey || currentApiKey.trim() === '') {
-            throw new Error("API Key Gemini belum disetel. Silakan masukkan key melalui menu Manual API Key.");
-        }
-        try {
-            aiInstance = new GoogleGenAI(currentApiKey.trim());
-        } catch (e) {
-            console.error("Gagal inisialisasi Gemini AI:", e);
-            throw new Error("Gagal inisialisasi Gemini AI. Pastikan API Key benar.");
-        }
-    }
-    return aiInstance;
-};
+let ai = new GoogleGenAI({ apiKey: currentApiKey });
 
 export const setGeminiApiKey = (key: string) => {
-    if (!key || key.trim() === '') return;
     currentApiKey = key;
-    try {
-        aiInstance = new GoogleGenAI(currentApiKey);
-    } catch (e) {
-        console.error("Gagal inisialisasi Gemini AI:", e);
-    }
+    ai = new GoogleGenAI({ apiKey: currentApiKey });
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Generates text content (scripts, JSON data) using Gemini.
+ * Generates text content (scripts, JSON data) using Gemini 3 Flash.
  * Used for generating Concepts and Shotlists.
  */
 export const generateScriptContent = async (prompt: string): Promise<any> => {
     try {
-        const model = getAI().getGenerativeModel({ 
-            model: 'gemini-1.5-flash',
-            generationConfig: {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
                 responseMimeType: "application/json",
             }
         });
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        let text = response.text();
-        
+        let text = response.text;
         if (!text) return null;
 
         // Robust JSON extraction
@@ -100,7 +75,7 @@ export const generateScriptContent = async (prompt: string): Promise<any> => {
 };
 
 /**
- * Generates an image using Gemini 2.0 Flash.
+ * Generates an image using Gemini 2.5 Flash Image.
  * Supports text prompts and optional reference images.
  * Implements aggressive exponential backoff for 429 Rate Limit and 500 Internal errors.
  */
@@ -130,21 +105,18 @@ export const generateStoryboardImage = async (
   let attempt = 0;
   while (attempt <= retries) {
     try {
-      const model = getAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts }],
-        generationConfig: {
-          // @ts-ignore - Some versions of SDK might not have imageConfig in types yet but it works in Gemini 2.0
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts },
+        config: {
           imageConfig: {
             aspectRatio: aspectRatio
           }
         },
       });
 
-      const response = await result.response;
-      const candidates = (response as any).candidates;
-      const content = candidates?.[0]?.content;
-      
+      // Extract the image from the response
+      const content = response.candidates?.[0]?.content;
       if (content?.parts) {
           for (const part of content.parts) {
               if (part.inlineData && part.inlineData.data) {
@@ -221,19 +193,15 @@ export const editStoryboardImage = async (
     let attempt = 0;
     while (attempt <= retries) {
         try {
-            const model = getAI().getGenerativeModel({ model: 'gemini-2.0-flash' });
-            const result = await model.generateContent({
-                contents: [{ role: 'user', parts }],
-                generationConfig: {
-                    // @ts-ignore
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts },
+                config: {
                     imageConfig: { aspectRatio: aspectRatio }
                 },
             });
 
-            const response = await result.response;
-            const candidates = (response as any).candidates;
-            const content = candidates?.[0]?.content;
-            
+            const content = response.candidates?.[0]?.content;
             if (content?.parts) {
                 for (const part of content.parts) {
                     if (part.inlineData && part.inlineData.data) {
@@ -277,15 +245,14 @@ export const editStoryboardImage = async (
 };
 
 /**
- * Generates speech (TTS) from text using Gemini 2.0 Flash.
+ * Generates speech (TTS) from text using Gemini 2.5 Flash TTS.
  */
 export const generateSpeech = async (text: string, voiceName: string = 'Kore'): Promise<string | null> => {
   try {
-    const model = getAI().getGenerativeModel({ model: "gemini-2.0-flash" });
-    const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: text }] }],
-      generationConfig: {
-        // @ts-ignore
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: text }] }],
+      config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
             voiceConfig: {
@@ -295,10 +262,7 @@ export const generateSpeech = async (text: string, voiceName: string = 'Kore'): 
       },
     });
 
-    const response = await result.response;
-    const candidates = (response as any).candidates;
-    const base64Audio = candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       return base64Audio;
     }
