@@ -6,20 +6,30 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAI = () => {
     if (!aiInstance) {
-        if (!currentApiKey) {
+        if (!currentApiKey || currentApiKey.trim() === '') {
             currentApiKey = localStorage.getItem('gemini_api_key') || '';
         }
-        if (!currentApiKey) {
+        if (!currentApiKey || currentApiKey.trim() === '') {
             throw new Error("API Key Gemini belum disetel. Silakan masukkan key melalui menu Manual API Key.");
         }
-        aiInstance = new GoogleGenAI(currentApiKey);
+        try {
+            aiInstance = new GoogleGenAI(currentApiKey.trim());
+        } catch (e) {
+            console.error("Gagal inisialisasi Gemini AI:", e);
+            throw new Error("Gagal inisialisasi Gemini AI. Pastikan API Key benar.");
+        }
     }
     return aiInstance;
 };
 
 export const setGeminiApiKey = (key: string) => {
+    if (!key || key.trim() === '') return;
     currentApiKey = key;
-    aiInstance = new GoogleGenAI(currentApiKey);
+    try {
+        aiInstance = new GoogleGenAI(currentApiKey);
+    } catch (e) {
+        console.error("Gagal inisialisasi Gemini AI:", e);
+    }
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
